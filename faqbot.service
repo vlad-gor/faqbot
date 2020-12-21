@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram bot 'Faqbot'
+After=syslog.target
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/g_zhilokov/faqbot
+ExecStart=/usr/bin/python3 /home/g_zhilokov/faqbot/faqbot.py
+
+RestartSec=10
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

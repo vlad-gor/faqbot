@@ -1,35 +1,34 @@
- # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 import os
+import logging
+import logging.config
+
 import asyncio
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from models import User
-from db_manager import DB_manager
 from fuzzywuzzy import fuzz
 import pymorphy2
-
 from dotenv import load_dotenv
-load_dotenv()
 
+from models import User
+from db_manager import DB_manager
 import ex_reader
 from ex_reader import Question_List
-questions = Question_List()
 
-# for q in questions.ql:
-#     print(q.en())
+# Settings 
+if not os.path.exists('logs'):os.makedirs('logs')
+logging.config.fileConfig(fname = 'mylogger.conf', disable_existing_loggers=False)
+log = logging.getLogger(__name__)
 
-token = os.getenv('TOKEN')
-bot = Bot(token=token)
+load_dotenv()
+bot = Bot(token=os.getenv('TOKEN'))
 dp = Dispatcher(bot)
-
 loop = asyncio.get_event_loop()
-
 dbM = DB_manager()
 dbM.create_table(User)
-
 morph = pymorphy2.MorphAnalyzer()
-
+questions = Question_List()
 
 
 # 1. Начало общения с клиентом, выбор языка
@@ -40,7 +39,7 @@ async def send_welcome(message: types.Message):
         dbM.add_record(User, message)
         dbM.session.commit()
     except Exception as ex:
-        print(ex)
+        log.error(ex)
         dbM.session.rollback()
     inline_btn_1 = InlineKeyboardButton('🇬🇧 English', callback_data='English')
     inline_btn_2 = InlineKeyboardButton('🇩🇪 German', callback_data='German')
@@ -53,14 +52,14 @@ async def send_welcome(message: types.Message):
 @dp.callback_query_handler(lambda c: c.data == 'English')
 async def process_callback_button1(callback_query: types.CallbackQuery):
     dbM.update_user_lang(callback_query.from_user.id,'English')
-    print(dbM.get_user_from_id(callback_query.from_user.id))
+    log.debug(dbM.get_user_from_id(callback_query.from_user.id))
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id,"All right, let's continue. What is your question?")
 
 @dp.callback_query_handler(lambda c: c.data == 'German')
 async def process_callback_button2(callback_query: types.CallbackQuery):
     dbM.update_user_lang(callback_query.from_user.id,'German')
-    print(dbM.get_user_from_id(callback_query.from_user.id))
+    log.debug(dbM.get_user_from_id(callback_query.from_user.id))
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, 'Okay, lass uns weitermachen. Welche Frage haben Sie?')
 
@@ -105,25 +104,24 @@ def classify_question(message):
     current_user = dbM.get_user_from_id(message.chat.id)
     text = ' '.join(morph.parse(word)[0].normal_form for word in message.text.split())
     scores = list()
-    print(text)
     if current_user.lang == 'English':
         for quest in questions.ql:
             norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.en().split('|')[1].strip().split())
             scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        print(scores)
+        log.debug(scores)
         answer = str(questions.ql[scores.index(max(scores))].en()).split('|')[2].strip()
     elif current_user.lang == 'German':
         for quest in questions.ql:
             norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.dt().split('|')[1].strip().split())
             scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        print(scores)
+        log.debug(scores)
         answer = str(questions.ql[scores.index(max(scores))].dt()).split('|')[2].strip()
-    elif current_user.lang == 'Russian':
-        for quest in questions.ql:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.ru().split('|')[1].strip().split())
-            scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        print(scores)
-        answer = str(questions.ql[scores.index(max(scores))].ru()).split('|')[2].strip()
+    # elif current_user.lang == 'Russian':
+    #     for quest in questions.ql:
+    #         norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.ru().split('|')[1].strip().split())
+    #         scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
+    #     log.debug(scores)
+    #     answer = str(questions.ql[scores.index(max(scores))].ru()).split('|')[2].strip()
 
     return answer
 
