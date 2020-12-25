@@ -105,8 +105,13 @@ async def process_callback_yes(callback_query: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data == 'No')
 async def process_callback_no(callback_query: types.CallbackQuery):
+    '''Если нет предлагается форма заполнения на английском'''
+    form_yn = InlineKeyboardMarkup().add(
+        InlineKeyboardButton('Заполнить', callback_data='en_form_yes'),
+        InlineKeyboardButton('Отказаться', callback_data='en_form_no')) # если нет, ничего не происходит
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Send you request to email support@citystore.world. We’ll solve your problem.')    
+    await bot.send_message(callback_query.from_user.id, 'Send you request to email support@citystore.world. We’ll solve your problem.')
+    await bot.send_message(callback_query.from_user.id, 'Вы хотите отправить письмо отсюда? Заполните форму!', reply_markup=form_yn)  
 
 @dp.callback_query_handler(lambda c: c.data == 'Ja')
 async def process_callback_yes(callback_query: types.CallbackQuery):
@@ -115,9 +120,15 @@ async def process_callback_yes(callback_query: types.CallbackQuery):
 
 @dp.callback_query_handler(lambda c: c.data == 'Nein')
 async def process_callback_no(callback_query: types.CallbackQuery):
+    '''Если нет предлагается форма заполнения на немецком'''
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, 'Senden Sie Ihre Anfrage an support@citystore.world. Wir werden Ihr Problem lösen.')
 
+@dp.callback_query_handler(lambda c: c.data == 'en_form_yes')
+async def process_callback_no(callback_query: types.CallbackQuery):
+    '''Если нет предлагается форма заполнения на английском'''
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id,"Работает хендлер")
 
 def classify_question(message):
     '''Функция поиска ответа на вопрос'''
