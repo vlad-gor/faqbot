@@ -69,14 +69,16 @@ async def get_question(message: types.Message):
     '''Находит ответ на вопрос и уточняет помогло ли решение'''
     current_user = dbM.get_user_from_id(message.chat.id)
     if current_user.lang == 'English':
-        ans = analyst.classify_question_morphy(message, current_user.lang)
+        # ans = analyst.classify_question_morphy(message, current_user.lang)
+        ans = analyst.classify_question_spacy(message, current_user.lang)
         await bot.send_message(message.chat.id, ans)
         inline_btn_1 = InlineKeyboardButton('Yes', callback_data='Yes')
         inline_btn_2 = InlineKeyboardButton('No', callback_data='No')
         inline_kb1 = InlineKeyboardMarkup().add(inline_btn_1, inline_btn_2)
         await bot.send_message(message.chat.id,"Have we resolved your problem?", reply_markup=inline_kb1)
     elif current_user.lang == 'German':
-        ans = analyst.classify_question_morphy(message, current_user.lang)
+        # ans = analyst.classify_question_morphy(message, current_user.lang)
+        ans = analyst.classify_question_spacy(message, current_user.lang)
         await bot.send_message(message.chat.id, ans)
         inline_btn_1 = InlineKeyboardButton('Ja', callback_data='Ja')
         inline_btn_2 = InlineKeyboardButton('Nein', callback_data='Nein')
