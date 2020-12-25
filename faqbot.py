@@ -43,7 +43,6 @@ async def send_welcome(message: types.Message):
         dbM.session.rollback()
     inline_btn_1 = InlineKeyboardButton('🇬🇧 English', callback_data='English')
     inline_btn_2 = InlineKeyboardButton('🇩🇪 German', callback_data='German')
-    # inline_btn_3 = InlineKeyboardButton('🇷🇺 Russian ', callback_data='Russian')
     inline_kb1 = InlineKeyboardMarkup().add(inline_btn_1, inline_btn_2)
     greeting = "Hello!\nWelcome to the CityStore FAQ_Bot.\nChoose the language, please."
     await bot.send_message(message.chat.id, greeting, reply_markup=inline_kb1)
@@ -63,19 +62,11 @@ async def process_callback_button2(callback_query: types.CallbackQuery):
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, 'Okay, lass uns weitermachen. Welche Frage haben Sie?')
 
-# @dp.callback_query_handler(lambda c: c.data == 'Russian')
-# async def process_callback_button3(callback_query: types.CallbackQuery):
-#     dbM.update_user_lang(callback_query.from_user.id,'Russian')
-#     print(dbM.get_user_from_id(callback_query.from_user.id))
-#     await bot.answer_callback_query(callback_query.id)
-#     await bot.send_message(callback_query.from_user.id, 'Хорошо, давайте продолжим. Какой у вас вопрос?')
-
 @dp.message_handler(commands=['lang'])
 async def change_language(message: types.Message):
     '''Метод, переводит пользователя в состояние выбора языка, отправляет пользователю клавиатуру для выбора языка'''
     inline_btn_1 = InlineKeyboardButton('🇬🇧 English', callback_data='English')
     inline_btn_2 = InlineKeyboardButton('🇩🇪 German', callback_data='German')
-    # inline_btn_3 = InlineKeyboardButton('🇷🇺 Russian ', callback_data='Russian')
     inline_kb1 = InlineKeyboardMarkup().add(inline_btn_1, inline_btn_2)
     await bot.send_message(message.chat.id,"Choose language:", reply_markup=inline_kb1)
 
@@ -137,22 +128,16 @@ def classify_question(message):
     scores = list()
     if current_user.lang == 'English':
         for quest in questions.ql:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.en().split('|')[1].strip().split())
+            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.get_question('en').split())
             scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
         log.debug(scores)
-        answer = str(questions.ql[scores.index(max(scores))].en()).split('|')[2].strip()
+        answer = questions.ql[scores.index(max(scores))].get_answer('en')
     elif current_user.lang == 'German':
         for quest in questions.ql:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.dt().split('|')[1].strip().split())
+            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.get_question('dt').split())
             scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
         log.debug(scores)
-        answer = str(questions.ql[scores.index(max(scores))].dt()).split('|')[2].strip()
-    # elif current_user.lang == 'Russian':
-    #     for quest in questions.ql:
-    #         norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.ru().split('|')[1].strip().split())
-    #         scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-    #     log.debug(scores)
-    #     answer = str(questions.ql[scores.index(max(scores))].ru()).split('|')[2].strip()
+        answer = questions.ql[scores.index(max(scores))].get_answer('dt')
 
     return answer
 

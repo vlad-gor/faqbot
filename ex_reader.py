@@ -43,6 +43,22 @@ class Question():
     def __repr__(self):
         return f"{self.category[0]} | {self.answer[0]} | {self.translate[0]}"
 
+    def get_answer(self, lang):
+        if lang == 'ru':
+            return self.ru().split('|')[2].strip()
+        elif lang == 'en':
+            return self.en().split('|')[2].strip()
+        elif lang == 'dt':
+            return self.dt().split('|')[2].strip()
+
+    def get_question(self, lang):
+        if lang == 'ru':
+            return self.ru().split('|')[1].strip()
+        elif lang == 'en':
+            return self.en().split('|')[1].strip()
+        elif lang == 'dt':
+            return self.dt().split('|')[1].strip()
+
 
 class Question_List():
 
