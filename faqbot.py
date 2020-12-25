@@ -7,14 +7,11 @@ import logging.config
 import asyncio
 from aiogram import Bot, Dispatcher, executor, types
 from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from fuzzywuzzy import fuzz
-import pymorphy2
 from dotenv import load_dotenv
 
 from models import User
 from db_manager import DB_manager
-import ex_reader
-from ex_reader import Question_List
+from analyzer import analyst
 
 # Settings 
 if not os.path.exists('logs'):os.makedirs('logs')
@@ -27,9 +24,6 @@ dp = Dispatcher(bot)
 loop = asyncio.get_event_loop()
 dbM = DB_manager()
 dbM.create_table(User)
-morph = pymorphy2.MorphAnalyzer()
-questions = Question_List()
-
 
 # 1. Начало общения с клиентом, выбор языка
 @dp.message_handler(commands=['start'])
@@ -51,14 +45,14 @@ async def send_welcome(message: types.Message):
 @dp.callback_query_handler(lambda c: c.data == 'English')
 async def process_callback_button1(callback_query: types.CallbackQuery):
     dbM.update_user_lang(callback_query.from_user.id,'English')
-    log.debug(dbM.get_user_from_id(callback_query.from_user.id))
+    log.info(dbM.get_user_from_id(callback_query.from_user.id))
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id,"All right, let's continue. What is your question?")
 
 @dp.callback_query_handler(lambda c: c.data == 'German')
 async def process_callback_button2(callback_query: types.CallbackQuery):
     dbM.update_user_lang(callback_query.from_user.id,'German')
-    log.debug(dbM.get_user_from_id(callback_query.from_user.id))
+    log.info(dbM.get_user_from_id(callback_query.from_user.id))
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, 'Okay, lass uns weitermachen. Welche Frage haben Sie?')
 
@@ -75,14 +69,14 @@ async def get_question(message: types.Message):
     '''Находит ответ на вопрос и уточняет помогло ли решение'''
     current_user = dbM.get_user_from_id(message.chat.id)
     if current_user.lang == 'English':
-        ans = classify_question(message)
+        ans = analyst.classify_question_morphy(message, current_user.lang)
         await bot.send_message(message.chat.id, ans)
         inline_btn_1 = InlineKeyboardButton('Yes', callback_data='Yes')
         inline_btn_2 = InlineKeyboardButton('No', callback_data='No')
         inline_kb1 = InlineKeyboardMarkup().add(inline_btn_1, inline_btn_2)
         await bot.send_message(message.chat.id,"Have we resolved your problem?", reply_markup=inline_kb1)
     elif current_user.lang == 'German':
-        ans = classify_question(message)
+        ans = analyst.classify_question_morphy(message, current_user.lang)
         await bot.send_message(message.chat.id, ans)
         inline_btn_1 = InlineKeyboardButton('Ja', callback_data='Ja')
         inline_btn_2 = InlineKeyboardButton('Nein', callback_data='Nein')
@@ -120,26 +114,6 @@ async def process_callback_no(callback_query: types.CallbackQuery):
     '''Если нет предлагается форма заполнения на английском'''
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id,"Работает хендлер")
-
-def classify_question(message):
-    '''Функция поиска ответа на вопрос'''
-    current_user = dbM.get_user_from_id(message.chat.id)
-    text = ' '.join(morph.parse(word)[0].normal_form for word in message.text.split())
-    scores = list()
-    if current_user.lang == 'English':
-        for quest in questions.ql:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.get_question('en').split())
-            scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        log.debug(scores)
-        answer = questions.ql[scores.index(max(scores))].get_answer('en')
-    elif current_user.lang == 'German':
-        for quest in questions.ql:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in quest.get_question('dt').split())
-            scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        log.debug(scores)
-        answer = questions.ql[scores.index(max(scores))].get_answer('dt')
-
-    return answer
 
 
 if __name__ == '__main__':
