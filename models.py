@@ -25,4 +25,4 @@ class User(Base):
         self.state = 'START'
 
     def __repr__(self):
-        return f"{self.uid} : {self.first_name} : {self.last_name} : {self.username} : {self.status} : {self.state} : {self.lang}"
+        return f"{self.uid} : {self.status} : {self.state} : {self.lang}"
