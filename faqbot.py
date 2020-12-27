@@ -1,162 +1,160 @@
- # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 import os
+import logging
+import logging.config
+
 import asyncio
 from aiogram import Bot, Dispatcher, executor, types
-from aiogram.types import ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.dispatcher import FSMContext
+from aiogram.dispatcher.filters.state import State, StatesGroup
+from dotenv import load_dotenv
+
+from markup import *
 from models import User
 from db_manager import DB_manager
-from fuzzywuzzy import fuzz
-import pymorphy2
-from dotenv import load_dotenv
+from analyzer import analyst
+
+# Settings 
+if not os.path.exists('logs'):os.makedirs('logs')
+logging.config.fileConfig(fname = 'mylogger.conf', disable_existing_loggers=False)
+log = logging.getLogger(__name__)
+
 load_dotenv()
-
-token = os.getenv('TOKEN')
-bot = Bot(token=token)
-dp = Dispatcher(bot)
-
+bot = Bot(token=os.getenv('TOKEN'))
+# For example use simple MemoryStorage for Dispatcher.
+storage = MemoryStorage()
+dp = Dispatcher(bot, storage=storage)
 loop = asyncio.get_event_loop()
-
 dbM = DB_manager()
 dbM.create_table(User)
 
-current_user = None
+# States
+class Form(StatesGroup):
+    name = State()
+    email = State()
+    question = State()
 
-morph = pymorphy2.MorphAnalyzer()
-
-with open("base/questions1.txt", "r", encoding='utf8') as f_:
-    questions1 = f_.readlines()
-
-with open("base/questions2.txt", "r", encoding='utf8') as f_:
-    questions2 = f_.readlines()
-
-with open("base/questions3.txt", "r", encoding='utf8') as f_:
-    questions3 = f_.readlines()
-
-def classify_question(text, status):
-    text = ' '.join(morph.parse(word)[0].normal_form for word in text.split())
-    scores = list()
-
-    if status=='User':
-        for question in questions1:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in question.split())
-            scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        print(scores)
-        answer = questions1[scores.index(max(scores))]
-    elif status=='Vendor':
-        for question in questions2:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in question.split())
-            scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        # print(scores)
-        answer = questions2[scores.index(max(scores))] 
-    elif status=='Distributor':
-        for question in questions3:
-            norm_question = ' '.join(morph.parse(word)[0].normal_form for word in question.split())
-            scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        # print(scores)
-        answer = questions3[scores.index(max(scores))]
-
-    return f"Ответ на вопрос: {answer}"
-
-
+# 1. Начало общения с клиентом, выбор языка
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
-    # print(message)
+    '''Начало общения с клиентом - добавить в базу, запомнить выбор языка'''
     try:
         dbM.add_record(User, message)
         dbM.session.commit()
     except Exception as ex:
-        # print(ex)
+        # log.error(ex)
         dbM.session.rollback()
-    # print(dbM.get_user_from_id(message.chat.id))
-    await bot.send_message(message.chat.id,
-    """Hello!
-I am a chat bot of the company 'Unknown Company'. 
-I am ready to answer your questions.
+    await bot.send_message(message.chat.id, greeting, reply_markup=choose_lang_markup)
 
-If you need to change the language, type 
-/lang.
-If you need to change the status, type 
-/status.
-
-By default, the language of our communication is English,
-and your status is User.
-    """
-   )
-
-@dp.message_handler(commands=['help'])
-async def send_welcome(message: types.Message):
-    await message.reply("Help")
+@dp.message_handler(commands=['lang'])
+async def change_language(message: types.Message):
+    await bot.send_message(message.chat.id,"Choose language:", reply_markup=choose_lang_markup)
 
 @dp.callback_query_handler(lambda c: c.data == 'English')
 async def process_callback_button1(callback_query: types.CallbackQuery):
     dbM.update_user_lang(callback_query.from_user.id,'English')
-    # print(dbM.get_user_from_id(callback_query.from_user.id))
+    log.info(dbM.get_user_from_id(callback_query.from_user.id))
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "All right, let's continue. What is your question?")
+    await bot.send_message(callback_query.from_user.id,"All right, let's continue. What is your question?")
 
 @dp.callback_query_handler(lambda c: c.data == 'German')
 async def process_callback_button2(callback_query: types.CallbackQuery):
     dbM.update_user_lang(callback_query.from_user.id,'German')
-    # print(dbM.get_user_from_id(callback_query.from_user.id))
+    log.info(dbM.get_user_from_id(callback_query.from_user.id))
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, 'Okay, lass uns weitermachen. Welche Frage haben Sie?')
 
-@dp.callback_query_handler(lambda c: c.data == 'Russian')
-async def process_callback_button3(callback_query: types.CallbackQuery):
-    dbM.update_user_lang(callback_query.from_user.id,'Russian')
-    # print(dbM.get_user_from_id(callback_query.from_user.id))
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Хорошо, давайте продолжим. Какой у вас вопрос?')
-
-
-@dp.callback_query_handler(lambda c: c.data == 'User')
-async def process_callback_button4(callback_query: types.CallbackQuery):
-    dbM.update_user_status(callback_query.from_user.id,'User')
-    # print(dbM.get_user_from_id(callback_query.from_user.id))
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, "Status switched to: User")
-
-@dp.callback_query_handler(lambda c: c.data == 'Vendor')
-async def process_callback_button5(callback_query: types.CallbackQuery):
-    dbM.update_user_status(callback_query.from_user.id,'Vendor')
-    # print(dbM.get_user_from_id(callback_query.from_user.id))
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Status switched to: Vendor')
-
-@dp.callback_query_handler(lambda c: c.data == 'Distributor')
-async def process_callback_button6(callback_query: types.CallbackQuery):
-    dbM.update_user_status(callback_query.from_user.id,'Distributor')
-    # print(dbM.get_user_from_id(callback_query.from_user.id))
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Status switched to: Distributor')
-
-
-@dp.message_handler(commands=['lang'])
-async def change_language(message: types.Message):
-    '''Метод, переводит пользователя в состояние выбора языка, отправляет пользователю клавиатуру для выбора языка'''
-    inline_btn_1 = InlineKeyboardButton('🇬🇧 English', callback_data='English')
-    inline_btn_2 = InlineKeyboardButton('🇩🇪 German', callback_data='German')
-    inline_btn_3 = InlineKeyboardButton('🇷🇺 Russian ', callback_data='Russian')
-    inline_kb1 = InlineKeyboardMarkup().add(inline_btn_1, inline_btn_2, inline_btn_3)
-    await bot.send_message(message.chat.id,"Choose language:", reply_markup=inline_kb1)
-
-@dp.message_handler(commands=['status'])
-async def change_language(message: types.Message):
-    '''Метод, переводит пользователя в состояние выбора статуса, отправляет пользователю клавиатуру для выбора статуса'''
-    inline_btn_4 = InlineKeyboardButton('User', callback_data='User')
-    inline_btn_5 = InlineKeyboardButton('Vendor', callback_data='Vendor')
-    inline_btn_6 = InlineKeyboardButton('Distributor', callback_data='Distributor')
-    inline_kb2 = InlineKeyboardMarkup().add(inline_btn_4, inline_btn_5, inline_btn_6)
-    await bot.send_message(message.chat.id,"Choose status:", reply_markup=inline_kb2)
-
 @dp.message_handler()
 async def get_question(message: types.Message):
-    # print(message)
-    global current_user
-    current_user = dbM.get_user_from_id(message.chat.id)
-    ans = classify_question(message.text, current_user.status)
+    '''Находит ответ на вопрос и уточняет помогло ли решение'''
+    lg = dbM.get_user_from_id(message.chat.id).lang
+    # ans = analyst.classify_question_morphy(message, lg)
+    ans = analyst.classify_question_spacy(message, lg)
     await bot.send_message(message.chat.id, ans)
+    await bot.send_message(message.chat.id,resolved[lg], reply_markup=YesNo1[lg])
+
+@dp.callback_query_handler(lambda c: c.data == 'Yes')
+async def process_callback_yes(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, 'Thank you for your request. We will be glad to see you soon.')
+
+@dp.callback_query_handler(lambda c: c.data == 'No')
+async def process_callback_no(callback_query: types.CallbackQuery):
+    '''Если нет предлагается форма заполнения на английском'''
+    form_yn = InlineKeyboardMarkup().add(
+        InlineKeyboardButton('Заполнить', callback_data='fill_form'),
+        InlineKeyboardButton('Отказаться', callback_data='en_form_no')) # если нет, ничего не происходит
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, 'Send you request to email support@citystore.world. We’ll solve your problem.')
+    await bot.send_message(callback_query.from_user.id, 'Вы хотите отправить письмо отсюда? Заполните форму!', reply_markup=form_yn)  
+
+@dp.callback_query_handler(lambda c: c.data == 'Ja')
+async def process_callback_yes(callback_query: types.CallbackQuery):
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, 'Danke für ihre Anfrage. Wir freuen uns, Sie in naher Zukunft zu sehen.')
+
+@dp.callback_query_handler(lambda c: c.data == 'Nein')
+async def process_callback_no(callback_query: types.CallbackQuery):
+    '''Если нет предлагается форма заполнения на немецком'''
+    form_yn = InlineKeyboardMarkup().add(
+        InlineKeyboardButton('Заполнить', callback_data='fill_form'),
+        InlineKeyboardButton('Отказаться', callback_data='dt_form_no')) # если нет, ничего не происходит
+    await bot.answer_callback_query(callback_query.id)
+    await bot.send_message(callback_query.from_user.id, 'Senden Sie Ihre Anfrage an support@citystore.world. Wir werden Ihr Problem lösen.')
+    await bot.send_message(callback_query.from_user.id, 'Вы хотите отправить письмо отсюда? Заполните форму!(немецкий)', reply_markup=form_yn)
+
+######################### Email Form ###########################
+
+@dp.callback_query_handler(lambda c: c.data == 'fill_form')
+async def process_callback_en_form_yes(callback_query: types.CallbackQuery):
+    current_user = dbM.get_user_from_id(callback_query.from_user.id)
+    await bot.answer_callback_query(callback_query.id)
+    await Form.name.set()
+    if current_user.lang == 'English':
+        await bot.send_message(callback_query.from_user.id,"Как вас зовут:")
+    elif current_user.lang == 'German':
+        await bot.send_message(callback_query.from_user.id,"Как вас зовут:(немецкий)")
+
+@dp.message_handler(state=Form.name)
+async def process_name(message: types.Message, state: FSMContext):
+    current_user = dbM.get_user_from_id(message.chat.id)
+    async with state.proxy() as data:
+        data['name'] = message.text
+    await Form.next()
+    if current_user.lang == 'English':
+        await bot.send_message(message.chat.id,"Ваш email:")
+    elif current_user.lang == 'German':
+        await bot.send_message(message.chat.id,"Ваш email:(немецкий)")
+
+@dp.message_handler(state=Form.email)
+async def process_mail(message: types.Message, state: FSMContext):
+    current_user = dbM.get_user_from_id(message.chat.id)
+    async with state.proxy() as data:
+        data['email'] = message.text
+    await Form.next()
+    if current_user.lang == 'English':
+        await bot.send_message(message.chat.id,"Ваш вопрос:")
+    elif current_user.lang == 'German':
+        await bot.send_message(message.chat.id,"Ваш вопрос:(немецкий)")
+
+@dp.message_handler(state=Form.question)
+async def process_question(message: types.Message, state: FSMContext):
+    current_user = dbM.get_user_from_id(message.chat.id)
+    async with state.proxy() as data:
+        data['question'] = message.text   
+    if current_user.lang == 'English':
+        await bot.send_message(message.chat.id,
+        f'Ваше письмо отправлено.\nName: {data["name"]}\nEmail: {data["email"]}\nQuestion: {data["question"]}')
+    elif current_user.lang == 'German':
+        await bot.send_message(message.chat.id,
+        f'Ваше письмо отправлено.(немецкий)\nName: {data["name"]}\nEmail: {data["email"]}\nQuestion: {data["question"]}')
+    # Finish conversation
+    await state.finish()
+
+#######################################################################
 
 if __name__ == '__main__':
     executor.start_polling(dp, loop=loop, skip_updates=True)
