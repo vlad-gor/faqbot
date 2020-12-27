@@ -53,19 +53,13 @@ async def send_welcome(message: types.Message):
 async def change_language(message: types.Message):
     await bot.send_message(message.chat.id,"Choose language:", reply_markup=choose_lang_markup)
 
-@dp.callback_query_handler(lambda c: c.data == 'English')
-async def process_callback_button1(callback_query: types.CallbackQuery):
-    dbM.update_user_lang(callback_query.from_user.id,'English')
+@dp.callback_query_handler(lambda c: c.data in ['English','German'])
+async def process_callback_choose_lg(callback_query: types.CallbackQuery):
+    lg = callback_query.data
+    dbM.update_user_lang(callback_query.from_user.id, lg)
     log.info(dbM.get_user_from_id(callback_query.from_user.id))
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id,"All right, let's continue. What is your question?")
-
-@dp.callback_query_handler(lambda c: c.data == 'German')
-async def process_callback_button2(callback_query: types.CallbackQuery):
-    dbM.update_user_lang(callback_query.from_user.id,'German')
-    log.info(dbM.get_user_from_id(callback_query.from_user.id))
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Okay, lass uns weitermachen. Welche Frage haben Sie?')
+    await bot.send_message(callback_query.from_user.id, what[lg])
 
 @dp.message_handler()
 async def get_question(message: types.Message):
@@ -76,10 +70,11 @@ async def get_question(message: types.Message):
     await bot.send_message(message.chat.id, ans)
     await bot.send_message(message.chat.id,resolved[lg], reply_markup=YesNo1[lg])
 
-@dp.callback_query_handler(lambda c: c.data == 'Yes')
+@dp.callback_query_handler(lambda c: c.data in ['Yes', 'Ja'])
 async def process_callback_yes(callback_query: types.CallbackQuery):
+    lg = dbM.get_user_from_id(callback_query.from_user.id).lang
     await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Thank you for your request. We will be glad to see you soon.')
+    await bot.send_message(callback_query.from_user.id, result[lg])
 
 @dp.callback_query_handler(lambda c: c.data == 'No')
 async def process_callback_no(callback_query: types.CallbackQuery):
@@ -90,11 +85,6 @@ async def process_callback_no(callback_query: types.CallbackQuery):
     await bot.answer_callback_query(callback_query.id)
     await bot.send_message(callback_query.from_user.id, 'Send you request to email support@citystore.world. We’ll solve your problem.')
     await bot.send_message(callback_query.from_user.id, 'Вы хотите отправить письмо отсюда? Заполните форму!', reply_markup=form_yn)  
-
-@dp.callback_query_handler(lambda c: c.data == 'Ja')
-async def process_callback_yes(callback_query: types.CallbackQuery):
-    await bot.answer_callback_query(callback_query.id)
-    await bot.send_message(callback_query.from_user.id, 'Danke für ihre Anfrage. Wir freuen uns, Sie in naher Zukunft zu sehen.')
 
 @dp.callback_query_handler(lambda c: c.data == 'Nein')
 async def process_callback_no(callback_query: types.CallbackQuery):
