@@ -4,6 +4,8 @@ choose_lang_markup = InlineKeyboardMarkup().add(
     InlineKeyboardButton('🇬🇧 English', callback_data='English'),
     InlineKeyboardButton('🇩🇪 German', callback_data='German'))
 
+greeting = "Hello!\nWelcome to the CityStore FAQ_Bot.\nChoose the language, please."
+
 resolved = {
     'English':"Have we resolved your problem?",
     'German':"Haben wir Ihr Problem gelöst?"

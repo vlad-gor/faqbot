@@ -47,7 +47,6 @@ async def send_welcome(message: types.Message):
     except Exception as ex:
         # log.error(ex)
         dbM.session.rollback()
-    greeting = "Hello!\nWelcome to the CityStore FAQ_Bot.\nChoose the language, please."
     await bot.send_message(message.chat.id, greeting, reply_markup=choose_lang_markup)
 
 @dp.message_handler(commands=['lang'])
