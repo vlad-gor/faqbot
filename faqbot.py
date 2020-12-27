@@ -41,7 +41,7 @@ def classify_question(text, status):
         for question in questions1:
             norm_question = ' '.join(morph.parse(word)[0].normal_form for word in question.split())
             scores.append(fuzz.token_sort_ratio(norm_question.lower(), text.lower()))
-        # print(scores)
+        print(scores)
         answer = questions1[scores.index(max(scores))]
     elif status=='Vendor':
         for question in questions2:
