@@ -1,5 +1,5 @@
 systemctl stop faqbot
-systemctl status faqbot
+#systemctl status faqbot
 sudo pip3 install -U pip setuptools wheel
 sudo pip3 install -U spacy
 sudo python3 -m spacy download de_core_news_sm
